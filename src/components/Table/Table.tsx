@@ -1,5 +1,5 @@
 import React from 'react';
-import { Table as AntTable } from 'antd';
+import { Table as AntTable, Spin } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
 
 type VisibleRow = {
@@ -13,6 +13,8 @@ type VisibleRow = {
 interface TableProps {
   visibleRows: VisibleRow[];
   sentinelRef: React.Ref<HTMLDivElement>;
+  isFetching : boolean;
+  hasMore    : boolean;       
 }
 
 const columns: ColumnsType<VisibleRow> = [
@@ -44,7 +46,7 @@ const columns: ColumnsType<VisibleRow> = [
   },
 ];
 
-function Table({ visibleRows, sentinelRef }: TableProps) {
+function Table({ visibleRows, sentinelRef, isFetching, hasMore }: TableProps) {
   return (
     <>
       <AntTable<VisibleRow>
@@ -54,8 +56,14 @@ function Table({ visibleRows, sentinelRef }: TableProps) {
         pagination={false}
         size="small"
         bordered
+        loading={isFetching}
+        footer={() =>
+          isFetching                      ? <Spin size="small" /> :
+          !hasMore && visibleRows.length ? 'Это всё 👋' :
+          null
+        }
       />
-      <div ref={sentinelRef} style={{ height: 1 }} />
+      {hasMore && <div ref={sentinelRef} style={{ height: 1 }} />}
     </>
   );
 }

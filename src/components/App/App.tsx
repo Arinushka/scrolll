@@ -1,46 +1,49 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef } from 'react';
 import type { ChangeEvent } from 'react';
-import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
-import { usePersistedEvents } from '../../hooks/usePersistedEvents'; // 👈
-import './App.css';
-
 import Table from '../Table/Table';
 import Filters from '../Filters/Filters';
+import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
+import './App.css';
+import { useEventsStorage } from '../../hooks/useEventsStorage';
+import { useFilteredEvents } from '../../hooks/useFilteredEvents';
+import { usePaginatedData } from '../../hooks/usePaginatedData';
+import { useResetOnDepsChange } from '../../hooks/useResetOnDepsChange';
+
+export interface EventDto {
+  app: string;
+  date: string;
+  message: string;
+  type: string;
+  uniqueId: string;
+}
 
 const PAGE_SIZE = 40;
 
 function App() {
-  const { events } = usePersistedEvents();
-  const [msgFilter, setMsgFilter]   = useState('');
-  const [dateFilter, setDateFilter] = useState<string|null>('');
-  const [visibleCnt, setVisibleCnt] = useState(PAGE_SIZE);
 
-  const resetVisible = () => setVisibleCnt(PAGE_SIZE);
+  const [msgFilter, setMsgFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState<string | null>(null);
 
-  const handleMsgChange = (e: ChangeEvent<HTMLInputElement>) => {
-    setMsgFilter(e.target.value);
-    resetVisible();
-  };
+  const handleMsgChange = (e: ChangeEvent<HTMLInputElement>) => setMsgFilter(e.target.value);
+  const handleDateChange = (v: string | null) => setDateFilter(v);
 
-  const handleDateChange = (date: string| null) => {
-    setDateFilter(date);
-    resetVisible();
-  };
+  const allEvents = useEventsStorage('events');
+  const totalCount = allEvents.length;
 
-  const filtered = events.filter(ev => {
-    const okMsg  = !msgFilter  || ev.message.toLowerCase()
-                                   .includes(msgFilter.toLowerCase());
-    const okDate = !dateFilter || ev.date.startsWith(dateFilter);
-    return okMsg && okDate;
-  });
+  const filtered = useFilteredEvents(allEvents, msgFilter, dateFilter);
+  const filteredCount = filtered.length;
 
-  const visibleRows = filtered.slice(0, visibleCnt);
+  const {
+    pageRows,
+    hasMore,
+    isFetching,
+    loadNextPage,
+    resetPagination,
+  } = usePaginatedData(filtered, PAGE_SIZE);
+
+  useResetOnDepsChange(resetPagination, [msgFilter, dateFilter]);
+
   const sentinelRef = useRef<HTMLTableRowElement>(null);
-
-  const loadNextPage = useCallback(() => {
-    setVisibleCnt(cnt => Math.min(cnt + PAGE_SIZE, filtered.length));
-  }, [filtered.length]);
-
   useInfiniteScroll(sentinelRef, loadNextPage);
 
   return (
@@ -55,12 +58,18 @@ function App() {
       />
 
       <p>
-        Всего: {events.length}&nbsp;|
-        &nbsp;Отфильтровано: {filtered.length}&nbsp;|
-        &nbsp;Показано: {visibleRows.length}
+        Всего: {totalCount}&nbsp;|
+        &nbsp;Отфильтровано: {filteredCount}&nbsp;|
+        &nbsp;Показано: {pageRows.length}
+        {isFetching && ' (загрузка...)'}
       </p>
 
-      <Table visibleRows={visibleRows} sentinelRef={sentinelRef} />
+      <Table
+        visibleRows={pageRows}
+        sentinelRef={sentinelRef}
+        isFetching={isFetching}
+        hasMore={hasMore}
+      />
     </div>
   );
 }
